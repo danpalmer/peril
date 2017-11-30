@@ -19,21 +19,41 @@ const go = async () => {
     const modules = installation.settings.modules
     log("Installing: " + modules.join(", "))
 
-    const yarn = child_process.spawn("yarn", ["add", ...modules, "--ignore-scripts"], {
+    const yarn = execPromise("yarn", ["add", ...modules, "--ignore-scripts"], {
       env: { ...process.env, NO_RECURSE: "YES" },
     })
 
-    yarn.stdout.on("data", data => log(`-> : ${data}`))
-    yarn.stderr.on("data", data => log(`! -> : ${data}`))
-
-    yarn.on("close", code => {
-      log(`child process exited with code ${code}`)
-      process.exit(code)
-    })
+    yarn
+      .catch(code => {
+        if (code !== 0) {
+          process.exit(code)
+        }
+      })
+      .then(() => {
+        process.exit(0)
+      })
   } else {
     log("Not adding any plugins")
     process.exit(0)
   }
+}
+
+const execPromise = (command, args, options = {}) => {
+  return new Promise((resolve, reject) => {
+    const child = child_process.spawn(command, args, options)
+
+    child.stdout.on("data", data => log(`-> : ${data}`))
+    child.stderr.on("data", data => log(`! -> : ${data}`))
+
+    child.on("close", code => {
+      log(`${command} process exited with code ${code}`)
+      if (code !== 0) {
+        reject(code)
+      } else {
+        resolve(code)
+      }
+    })
+  })
 }
 
 go()
