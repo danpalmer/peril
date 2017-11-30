@@ -25,19 +25,24 @@ const go = async () => {
       process.exit(code)
     })
 
-    await Promise.all(
-      modules
-        .map(module => {
-          const metadata = require(`${module}/package.json`)
-          const postInstall = metadata.scripts["peril:postinstall"]
-          return { module, postInstall }
-        })
-        .filter(val => val.postInstall)
-        .map(val => {
-          log(`Running peril:postinstall for ${val.module}`)
-          return execPromise("yarn", ["run", `--cwd=node_modules/${val.module}`, "peril:postinstall"])
-        })
-    )
+    const postInstallScripts = modules
+      .map(module => {
+        const metadata = require(`${module}/package.json`)
+        const postInstall = metadata.scripts["peril:postinstall"]
+        return { module, postInstall }
+      })
+      .filter(val => val.postInstall)
+      .map(val => {
+        log(`Running peril:postinstall for ${val.module}`)
+        return execPromise("yarn", ["run", `--cwd=node_modules/${val.module}`, "peril:postinstall"])
+      })
+
+    if (!postInstallScripts) {
+      log("No peril:postinstall scripts to run")
+      process.exit(0)
+    }
+
+    await Promise.all(postInstallScripts)
       .catch(process.exit)
       .then(code => {
         log(`Finished post install hooks`)
