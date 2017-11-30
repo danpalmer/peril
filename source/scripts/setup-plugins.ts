@@ -19,17 +19,28 @@ const go = async () => {
     const modules = installation.settings.modules
     log("Installing: " + modules.join(", "))
 
-    const yarn = execPromise("yarn", ["add", ...modules, "--ignore-scripts"], {
+    await execPromise("yarn", ["add", ...modules, "--ignore-scripts"], {
       env: { ...process.env, NO_RECURSE: "YES" },
+    }).catch(code => {
+      process.exit(code)
     })
 
-    yarn
-      .catch(code => {
-        if (code !== 0) {
-          process.exit(code)
-        }
-      })
-      .then(() => {
+    await Promise.all(
+      modules
+        .map(module => {
+          const metadata = require(`${module}/package.json`)
+          const postInstall = metadata.scripts["peril:postinstall"]
+          return { module, postInstall }
+        })
+        .filter(val => val.postInstall)
+        .map(val => {
+          log(`Running peril:postinstall for ${val.module}`)
+          return execPromise("yarn", ["run", `--cwd=node_modules/${val.module}`, "peril:postinstall"])
+        })
+    )
+      .catch(process.exit)
+      .then(code => {
+        log(`Finished post install hooks`)
         process.exit(0)
       })
   } else {
